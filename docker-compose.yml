@@ -1,6 +1,15 @@
 # This file is generally only used for development
 version: "3"
 services:
+    traefik:
+        image: traefik
+        volumes:
+            - "/var/run/docker.sock:/var/run/docker.sock"
+        ports:
+            - "80:80"
+            - "8080:8080"
+        command: --web --docker
+
     general_code:
         # Set CURRENT_ID by running CURRENT_UID=$(id -u):$(id -g) docker-compose up
         user: ${CURRENT_UID}
@@ -9,8 +18,10 @@ services:
         volumes:
             - ./src:/code
         ports:
-            - "80:8080"
+            - "81:80"
         command: ./__main__.py --type general
+        labels:
+            - "traefik.frontend.rule=Host:general.localhost"
         depends_on:
             - pipeline
 
@@ -22,8 +33,10 @@ services:
         volumes:
             - ./src:/code
         ports:
-            - "81:8080"
+            - "82:80"
         command: ./__main__.py --type music
+        labels:
+            - "traefik.frontend.rule=Host:music.localhost"
         depends_on:
             - pipeline
 
@@ -37,8 +50,11 @@ services:
         volumes:
             - ./src:/code
         ports:
-            - "82:8080"
+            - "83:80"
+
         command: ./__main__.py --type video
+        labels:
+            - "traefik.frontend.rule=Host:video.localhost"
         depends_on:
             - pipeline
 
@@ -62,18 +78,25 @@ services:
         volumes:
             - ./src:/code
         ports:
-            - 83:5555
-        command: flower -A tasks --port=5555
+            - "84:80"
+        command: flower -A tasks --port=80
+        labels:
+            - "traefik.frontend.rule=Host:monitor.localhost"
         depends_on:
             - pipeline
 
     broker:
         image: rabbitmq
+        hostname: broker
         restart: always
+        volumes:
+            - ./rabbitmq:/var/lib/rabbitmq
 
     backend:
         image: redis
         restart: always
+        volumes:
+            - ./redis:/data
 
     mongodb:
         image: mongo
@@ -85,6 +108,8 @@ services:
     sqldb:
         image: postgres
         restart: always
+        volumes:
+            - ./postgres:/var/lib/postgresql
         environment:
             POSTGRES_DB: itumir
             POSTGRES_PASSWORD: pass

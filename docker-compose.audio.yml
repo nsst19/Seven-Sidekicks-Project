@@ -1,5 +1,14 @@
 version: "3"
 services:
+    traefik:
+        image: traefik
+        volumes:
+            - "/var/run/docker.sock:/var/run/docker.sock"
+        ports:
+            - "80:80"
+            - "8080:8080"
+        command: --web --docker
+
     music_code:
         # Set CURRENT_ID by running CURRENT_UID=$(id -u):$(id -g) docker-compose up
         user: ${CURRENT_UID}
@@ -9,8 +18,22 @@ services:
             - /mnt/download:/download
             - /mnt/archive:/archive
         ports:
-            - "80:8080"
+            - "81:80"
         command: ./__main__.py --type music
+        labels:
+            - "traefik.frontend.rule=Host:api.localhost"
+        depends_on:
+            - pipeline
+
+    flower:
+        user: ${CURRENT_UID}
+        build: .
+        restart: always
+        ports:
+            - "82:80"
+        command: flower -A tasks --port=80
+        labels:
+            - "traefik.frontend.rule=Host:monitor.localhost"
         depends_on:
             - pipeline
 
@@ -28,8 +51,13 @@ services:
 
     broker:
         image: rabbitmq
+        container_name: broker
         restart: always
+        volumes:
+            - ./rabbitmq:/var/lib/rabbitmq
 
     backend:
         image: redis
         restart: always
+        volumes:
+            - ./redis:/data
